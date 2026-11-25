@@ -4,6 +4,8 @@ import type {
   SortDirection,
   TableColumn,
   TableFilterOption,
+  TableRowAction,
+  TableSelectionConfig,
 } from '../types';
 
 export interface DataTableFilter<T extends object> {
@@ -28,6 +30,11 @@ export interface DataTableProps<T extends object> {
   searchKeys?: (keyof T)[];
   initialPageSize?: number;
   getRowId?: (row: T, index: number) => string;
+  rowActions?: TableRowAction<T>[];
+  selection?: TableSelectionConfig;
+  loading?: boolean;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
 type SortValue = string | number | boolean | Date | null | undefined;
@@ -91,6 +98,11 @@ export function DataTable<T extends object>({
   searchKeys,
   initialPageSize = 5,
   getRowId,
+  rowActions = [],
+  selection,
+  loading = false,
+  emptyTitle = 'No records found',
+  emptyDescription = 'Try changing your search or filters.',
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<{ key: string; direction: SortDirection } | null>(null);
@@ -150,6 +162,31 @@ export function DataTable<T extends object>({
   const pageRows = sortedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const firstItem = sortedRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const lastItem = Math.min(currentPage * pageSize, sortedRows.length);
+  const hasSelection = selection !== undefined;
+  const hasActions = rowActions.length > 0;
+
+  function getRowKey(row: T, index: number): string {
+    return getRowId ? getRowId(row, index) : String(index);
+  }
+
+  function toggleRow(row: T, index: number) {
+    if (!selection) return;
+    const rowId = getRowKey(row, index);
+    const nextIds = selection.selectedIds.includes(rowId)
+      ? selection.selectedIds.filter((selectedId) => selectedId !== rowId)
+      : [...selection.selectedIds, rowId];
+    selection.onChange(nextIds);
+  }
+
+  function togglePageRows() {
+    if (!selection) return;
+    const pageIds = pageRows.map((row, index) => getRowKey(row, (currentPage - 1) * pageSize + index));
+    const allPageRowsSelected = pageIds.every((rowId) => selection.selectedIds.includes(rowId));
+    const nextIds = allPageRowsSelected
+      ? selection.selectedIds.filter((selectedId) => !pageIds.includes(selectedId))
+      : [...new Set([...selection.selectedIds, ...pageIds])];
+    selection.onChange(nextIds);
+  }
 
   function updateFilter(filter: DataTableFilter<T>, value: string) {
     setFilterValues((current) => ({ ...current, [filter.key]: value }));
@@ -213,6 +250,17 @@ export function DataTable<T extends object>({
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950/60 dark:text-slate-400">
             <tr>
+              {hasSelection ? (
+                <th scope="col" className="w-12 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all rows on this page"
+                    checked={pageRows.length > 0 && pageRows.every((row, index) => selection.selectedIds.includes(getRowKey(row, (currentPage - 1) * pageSize + index)))}
+                    onChange={togglePageRows}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </th>
+              ) : null}
               {visibleColumns.map((column) => (
                 <th
                   key={column.key}
@@ -234,14 +282,46 @@ export function DataTable<T extends object>({
                   )}
                 </th>
               ))}
+              {hasActions ? <th scope="col" className="px-4 py-3 text-right">Actions</th> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {pageRows.map((row, index) => (
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={visibleColumns.length + Number(hasSelection) + Number(hasActions)}
+                  role="status"
+                  className="px-4 py-12 text-center text-slate-500 dark:text-slate-400"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+                    Loading rows...
+                  </span>
+                </td>
+              </tr>
+            ) : pageRows.length === 0 ? (
+              <tr>
+                <td colSpan={visibleColumns.length + Number(hasSelection) + Number(hasActions)} className="px-4 py-12 text-center">
+                  <p className="font-medium text-slate-700 dark:text-slate-200">{emptyTitle}</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{emptyDescription}</p>
+                </td>
+              </tr>
+            ) : pageRows.map((row, index) => (
               <tr
-                key={getRowId ? getRowId(row, (currentPage - 1) * pageSize + index) : (index + (currentPage - 1) * pageSize)}
+                key={getRowKey(row, (currentPage - 1) * pageSize + index)}
                 className="text-slate-700 transition hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
               >
+                {hasSelection ? (
+                  <td className="w-12 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select row ${getRowKey(row, (currentPage - 1) * pageSize + index)}`}
+                      checked={selection.selectedIds.includes(getRowKey(row, (currentPage - 1) * pageSize + index))}
+                      onChange={() => toggleRow(row, (currentPage - 1) * pageSize + index)}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
+                ) : null}
                 {visibleColumns.map((column) => (
                   <td
                     key={column.key}
@@ -250,6 +330,35 @@ export function DataTable<T extends object>({
                     {column.render ? column.render(row) : displayValue(readValue(row, column))}
                   </td>
                 ))}
+                {hasActions ? (
+                  <td className="px-4 py-3 text-right">
+                    <details className="group relative inline-block text-left">
+                      <summary className="cursor-pointer list-none rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                        More <span aria-hidden="true">▾</span>
+                      </summary>
+                      <div className="absolute right-0 z-10 mt-1 min-w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                        {rowActions
+                          .filter((action) => !(typeof action.hidden === 'function' ? action.hidden(row) : action.hidden))
+                          .map((action) => {
+                            const disabled = typeof action.disabled === 'function'
+                              ? action.disabled(row)
+                              : action.disabled ?? false;
+                            return (
+                              <button
+                                key={action.id}
+                                type="button"
+                                disabled={disabled}
+                                onClick={() => action.onClick(row)}
+                                className={`block w-full rounded-md px-3 py-2 text-left text-sm disabled:cursor-not-allowed disabled:opacity-40 ${action.variant === 'danger' ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'}`}
+                              >
+                                {action.label}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </details>
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
@@ -257,7 +366,7 @@ export function DataTable<T extends object>({
       </div>
 
       <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-        <p aria-live="polite">Showing {firstItem}–{lastItem} of {sortedRows.length}</p>
+        <p aria-live="polite">Showing {loading ? 0 : firstItem}–{loading ? 0 : lastItem} of {loading ? 0 : sortedRows.length}</p>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2">
             Rows per page

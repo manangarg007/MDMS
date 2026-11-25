@@ -1,6 +1,10 @@
+import { useState } from 'react';
 import type { Meter } from '../types';
+import type { TableRowAction } from '../types';
 import { DataTable } from './DataTable';
 import type { DataTableFilter } from './DataTable';
+
+type PreviewState = 'ready' | 'loading' | 'empty';
 
 const sampleMeters: Meter[] = [
   { id: 'meter-1001', meterNumber: 'MDM-1001', ownerId: 'user-1', ownerName: 'Aarav Mehta', zoneId: 'zone-north', zoneName: 'North Zone', status: 'active', lastReading: 4821, installedDate: '2024-01-18', tariffCategory: 'residential' },
@@ -36,19 +40,62 @@ const zoneFilter: DataTableFilter<Meter> = {
 };
 
 export function DataTableExample() {
+  const [previewState, setPreviewState] = useState<PreviewState>('ready');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [actionMessage, setActionMessage] = useState('');
+
+  const rowActions: TableRowAction<Meter>[] = [
+    {
+      id: 'view',
+      label: 'View meter',
+      onClick: (meter) => setActionMessage(`Viewing ${meter.meterNumber}`),
+    },
+    {
+      id: 'maintenance',
+      label: 'Mark for maintenance',
+      disabled: (meter) => meter.status === 'maintenance',
+      onClick: (meter) => setActionMessage(`${meter.meterNumber} marked for maintenance`),
+    },
+  ];
+
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Meter directory</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Sample records showing client-side search, sorting, status and zone filters, and pagination.
+          Sample records and controls to preview normal, loading, and empty table states.
         </p>
       </div>
+      <div className="flex flex-wrap items-end gap-4">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+          Preview state
+          <select
+            value={previewState}
+            onChange={(event) => setPreviewState(event.target.value as PreviewState)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+          >
+            <option value="ready">Rows</option>
+            <option value="loading">Loading</option>
+            <option value="empty">Empty</option>
+          </select>
+        </label>
+        <p aria-live="polite" className="text-sm text-slate-600 dark:text-slate-400">
+          {selectedIds.length} row{selectedIds.length === 1 ? '' : 's'} selected
+        </p>
+        {actionMessage ? (
+          <p role="status" className="text-sm text-blue-700 dark:text-blue-300">{actionMessage}</p>
+        ) : null}
+      </div>
       <DataTable
-        data={sampleMeters}
+        data={previewState === 'empty' ? [] : sampleMeters}
         getRowId={(meter) => meter.id}
         searchPlaceholder="Search meter number or owner..."
         searchKeys={['meterNumber', 'ownerName']}
+        loading={previewState === 'loading'}
+        emptyTitle="No meters to display"
+        emptyDescription="Try the Rows preview to return to the sample meter list."
+        selection={{ selectedIds, onChange: setSelectedIds }}
+        rowActions={rowActions}
         columns={[
           { key: 'meterNumber', accessorKey: 'meterNumber', header: 'Meter', sortable: true },
           { key: 'ownerName', accessorKey: 'ownerName', header: 'Owner', sortable: true },
