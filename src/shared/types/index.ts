@@ -5,5 +5,6 @@ export type * from './common';
 export type * from './meter';
 export type * from './navigation';
 export type * from './settings';
+export type * from './table';
 export type * from './user';
 export type * from './zone';
