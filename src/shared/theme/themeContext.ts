@@ -3,6 +3,7 @@ import type { ThemeMode } from '../types';
 
 export interface ThemeContextValue {
   theme: ThemeMode;
+  isDark: boolean;
   setTheme: (mode: ThemeMode) => void;
   toggleTheme: () => void;
 }

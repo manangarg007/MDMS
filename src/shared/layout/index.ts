@@ -1,3 +1,3 @@
 export { AppLayout } from './AppLayout';
-export { Header } from './Header';
-export { Sidebar } from './Sidebar';
+export { Header, type HeaderProps } from './Header';
+export { Sidebar, type SidebarProps } from './Sidebar';
