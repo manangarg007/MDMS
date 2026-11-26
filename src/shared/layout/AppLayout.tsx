@@ -57,7 +57,7 @@ export function AppLayout() {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-[var(--bg-app)] text-[var(--text-primary)]">
+    <div className="flex min-h-screen bg-[var(--bg-app)] text-[var(--text-primary)] print:block print:bg-white">
       <Sidebar
         role={activeRole}
         collapsed={sidebarCollapsed}
@@ -73,7 +73,7 @@ export function AppLayout() {
           onOpenMobileMenu={handleOpenMobileMenu}
         />
 
-        <main className="flex-1 p-4 sm:p-6">
+        <main className="flex-1 p-4 sm:p-6 print:p-0">
           <div className="mx-auto max-w-7xl">
             <Suspense fallback={<PageLoader />}>
               <Outlet />

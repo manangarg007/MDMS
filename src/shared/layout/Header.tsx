@@ -74,7 +74,7 @@ export function Header({
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/95 px-4 backdrop-blur-xs sm:px-6">
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/95 px-4 backdrop-blur-xs sm:px-6 print:hidden">
       <div className="flex items-center gap-3">
         <button
           type="button"
