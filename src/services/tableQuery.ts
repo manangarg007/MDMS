@@ -28,6 +28,16 @@ export interface JsonServerPage<T> {
   total: number;
 }
 
+export interface JsonServerFetchOptions {
+  /** Fields searched with JSON Server v1's case-insensitive `contains` operator. */
+  searchFields?: string[];
+}
+
+interface JsonServerPaginatedResponse<T> {
+  data: T[];
+  items?: number;
+}
+
 const RESERVED_QUERY_FIELDS = new Set(['_page', '_limit', '_sort', '_order', 'q']);
 
 function normalizePositiveInteger(value: number): number | undefined {
@@ -92,13 +102,51 @@ export async function fetchJsonServerPage<T>(
   endpoint: string,
   query: JsonServerTableQuery,
   signal?: AbortSignal,
+  options: JsonServerFetchOptions = {},
 ): Promise<JsonServerPage<T>> {
-  const response = await http.get<T[]>(endpoint, {
-    params: buildJsonServerQueryParams(query),
+  const queryParams = buildJsonServerQueryParams(query);
+  const requestParams: JsonServerQueryParams = { ...queryParams };
+  const perPage = requestParams._limit;
+  const sortBy = requestParams._sort;
+  const sortOrder = requestParams._order;
+  const search = requestParams.q;
+  delete requestParams._limit;
+  delete requestParams._order;
+  delete requestParams.q;
+
+  if (perPage !== undefined) requestParams._per_page = perPage;
+  if (sortBy) requestParams._sort = sortOrder === 'desc' ? `-${sortBy}` : sortBy;
+
+  const searchFields = options.searchFields?.filter((field) => field.trim().length > 0) ?? [];
+  if (search && searchFields.length > 0) {
+    const where: Record<string, unknown> = {};
+    for (const field of Object.keys(query.filters ?? {})) {
+      const value = query.filters?.[field];
+      const normalizedValue = normalizeFilterValue(value);
+      if (normalizedValue !== undefined && !RESERVED_QUERY_FIELDS.has(field)) {
+        where[field] = { eq: normalizedValue };
+      }
+      delete requestParams[field];
+    }
+    where.or = searchFields.map((field) => ({ [field]: { contains: search } }));
+    requestParams._where = JSON.stringify(where);
+  } else if (search) {
+    // Preserve compatibility with JSON Server versions that support q directly.
+    requestParams.q = search;
+  }
+
+  const response = await http.get<T[] | JsonServerPaginatedResponse<T>>(endpoint, {
+    // json-server v1 beta uses `_per_page`, signed `_sort`, and a metadata envelope.
+    // The exported query builder retains the stable `_limit` / `_order` adapter format.
+    params: requestParams,
     signal,
   });
-  const data = response.data;
-  const total = parseTotalCount(response.headers['x-total-count']) ?? data.length;
+  const payload = response.data;
+  const isPaginatedResponse = !Array.isArray(payload);
+  const data = isPaginatedResponse ? payload.data : payload;
+  const total = parseTotalCount(response.headers['x-total-count'])
+    ?? (isPaginatedResponse ? parseTotalCount(payload.items) : undefined)
+    ?? data.length;
 
   return { data, total };
 }
