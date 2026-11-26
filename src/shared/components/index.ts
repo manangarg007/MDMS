@@ -18,3 +18,7 @@ export { ConfirmDialog } from './ConfirmDialog';
 export type { ConfirmDialogProps } from './ConfirmDialog';
 export { ToastProvider, useToast, type ShowToastOptions, type ToastContextValue, type ToastType } from './toast';
 export { Spinner, Skeleton, SkeletonText, SkeletonCard, SkeletonTable, type SpinnerProps, type SpinnerSize, type SkeletonProps, type SkeletonTextProps, type SkeletonCardProps, type SkeletonTableProps } from './loading';
+export { PageHeader } from './PageHeader';
+export type { PageHeaderProps } from './PageHeader';
+export { Tabs } from './Tabs';
+export type { TabItem, TabsProps } from './Tabs';
