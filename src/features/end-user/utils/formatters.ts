@@ -15,6 +15,16 @@ const dateFormatter = new Intl.DateTimeFormat('en-IN', {
   timeZone: 'UTC',
 });
 
+const dateTimeFormatter = new Intl.DateTimeFormat('en-IN', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+  timeZone: 'UTC',
+});
+
 /**
  * Formats an INR amount like `Rs 1,230`.
  */
@@ -38,4 +48,13 @@ export function formatDate(isoValue: string): string {
   const parsed = new Date(isoValue);
   if (Number.isNaN(parsed.getTime())) return isoValue;
   return dateFormatter.format(parsed);
+}
+
+/**
+ * Formats an ISO timestamp like `25 Nov 2026, 23:59`.
+ */
+export function formatDateTime(isoValue: string): string {
+  const parsed = new Date(isoValue);
+  if (Number.isNaN(parsed.getTime())) return isoValue;
+  return dateTimeFormatter.format(parsed);
 }
