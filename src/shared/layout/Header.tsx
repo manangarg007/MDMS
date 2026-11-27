@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { getUnreadCount } from '../../features/end-user/services/notificationService';
 import { ThemeToggle } from '../components';
+import { DEMO_USER_ID } from '../config/demo';
 import { getAlertsPathForRole, ROLE_META } from '../routes';
 import type { UserRole } from '../types';
 
@@ -40,11 +42,29 @@ export function Header({
 }: HeaderProps) {
   const [language, setLanguage] = useState<LanguageCode>(readStoredLanguage);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [endUserUnreadCount, setEndUserUnreadCount] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const meta = ROLE_META[role];
   const alertsPath = getAlertsPathForRole(role);
-  const unreadCount = 3;
+  const unreadCount = role === 'end-user' ? endUserUnreadCount : 0;
+
+  useEffect(() => {
+    if (role !== 'end-user') {
+      return;
+    }
+    let active = true;
+    getUnreadCount(DEMO_USER_ID)
+      .then((count) => {
+        if (active) setEndUserUnreadCount(count);
+      })
+      .catch(() => {
+        // Keep 0 if JSON Server is offline
+      });
+    return () => {
+      active = false;
+    };
+  }, [role]);
 
   useEffect(() => {
     try {
