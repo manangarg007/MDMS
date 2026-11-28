@@ -60,7 +60,7 @@ export interface ZoneMetersQuery {
   sortBy?: string;
   sortOrder?: SortOrder;
   search?: string;
-  status?: MeterStatus;
+  status?: MeterStatus | 'inactive' | 'tampered';
   tariffCategory?: TariffCategory;
 }
 
