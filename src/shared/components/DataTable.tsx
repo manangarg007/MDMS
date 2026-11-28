@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { JsonServerTableQuery } from '../../services/tableQuery';
 import { fetchJsonServerPage } from '../../services/tableQuery';
+import type { JsonServerPage } from '../../services/tableQuery';
 import { EmptyState } from './EmptyState';
 import { Pagination } from './Pagination';
 import type {
@@ -40,14 +41,19 @@ export interface DataTableProps<T extends object> {
   emptyTitle?: string;
   emptyDescription?: string;
   /** Enables controlled server-side query state and JSON Server fetching. */
-  server?: DataTableServerConfig;
+  server?: DataTableServerConfig<T>;
 }
 
-export interface DataTableServerConfig {
-  endpoint: string;
+export interface DataTableServerConfig<T extends object> {
+  endpoint?: string;
+  loadPage?: (
+    query: JsonServerTableQuery,
+    signal: AbortSignal,
+  ) => Promise<JsonServerPage<T>>;
   query: JsonServerTableQuery;
   onQueryChange: (query: JsonServerTableQuery) => void;
   searchFields?: string[];
+  refreshKey?: string | number;
 }
 
 type SortValue = string | number | boolean | Date | null | undefined;
@@ -132,6 +138,7 @@ export function DataTable<T extends object>({
   }>({ requestKey: '', data: [], total: 0, error: null });
 
   const serverEndpoint = server?.endpoint;
+  const serverLoadPage = server?.loadPage;
   const serverQuery = server?.query;
 
   const visibleColumns = useMemo(() => {
@@ -153,22 +160,27 @@ export function DataTable<T extends object>({
       : visibleColumns.map((column) => String(column.accessorKey ?? column.key))),
     [searchKeys, server?.searchFields, visibleColumns],
   );
-  const serverRequestKey = `${serverEndpoint ?? ''}:${JSON.stringify(serverQuery ?? {})}:${JSON.stringify(serverSearchFields)}:${reloadToken}`;
+  const serverRequestKey = `${serverEndpoint ?? 'service'}:${JSON.stringify(serverQuery ?? {})}:${JSON.stringify(serverSearchFields)}:${server?.refreshKey ?? ''}:${reloadToken}`;
   const serverResultIsCurrent = serverResult.requestKey === serverRequestKey;
   const serverData = server && serverResultIsCurrent ? serverResult.data : [];
   const serverTotal = server && serverResultIsCurrent ? serverResult.total : 0;
-  const serverLoading = Boolean(serverEndpoint && serverQuery && !serverResultIsCurrent);
+  const serverLoading = Boolean((serverEndpoint || serverLoadPage) && serverQuery && !serverResultIsCurrent);
   const serverError = serverResultIsCurrent ? serverResult.error : null;
 
   useEffect(() => {
-    if (!serverEndpoint || !serverQuery) return undefined;
+    if (!serverQuery || (!serverEndpoint && !serverLoadPage)) return undefined;
 
     const controller = new AbortController();
     const requestKey = serverRequestKey;
+    const request = serverLoadPage
+      ? serverLoadPage(serverQuery, controller.signal)
+      : serverEndpoint
+        ? fetchJsonServerPage<T>(serverEndpoint, serverQuery, controller.signal, {
+            searchFields: serverSearchFields,
+          })
+        : Promise.reject(new Error('A server endpoint or page loader is required.'));
 
-    void fetchJsonServerPage<T>(serverEndpoint, serverQuery, controller.signal, {
-      searchFields: serverSearchFields,
-    })
+    void request
       .then((result) => {
         setServerResult({ requestKey, data: result.data, total: result.total, error: null });
       })
@@ -183,7 +195,7 @@ export function DataTable<T extends object>({
       });
 
     return () => controller.abort();
-  }, [serverEndpoint, serverQuery, serverRequestKey, serverSearchFields]);
+  }, [serverEndpoint, serverLoadPage, serverQuery, serverRequestKey, serverSearchFields]);
 
   const sourceData = server ? serverData : clientData;
   const filteredRows = useMemo(() => {
